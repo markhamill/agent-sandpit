@@ -64,6 +64,24 @@ resolve_workspace() {
   esac
 }
 
+# Read-only shares that stop an agent leaving code behind for the host to run:
+# every repo's .git/hooks and .git/config (a repo's config can point git at another
+# hooks folder), and any Obsidian vault's plugins. Agents still edit and commit as
+# normal: commits don't write to these. Appends to the args array.
+add_locks() {
+  local g v n=0
+  while IFS= read -r g; do
+    mkdir -p "$g/hooks"   # an empty, locked folder beats a missing one the agent could create
+    args+=(-v "$g/hooks:$MOUNT_DST${g#$MOUNT_SRC}/hooks:ro"); n=$((n + 1))
+    [ -f "$g/config" ] && { args+=(-v "$g/config:$MOUNT_DST${g#$MOUNT_SRC}/config:ro"); n=$((n + 1)); }
+  done < <(find -H "$MOUNT_SRC" -maxdepth 6 -name node_modules -prune -o -type d -name .git -print)
+  while IFS= read -r v; do
+    [ -d "$v/plugins" ] && { args+=(-v "$v/plugins:$MOUNT_DST${v#$MOUNT_SRC}/plugins:ro"); n=$((n + 1)); }
+    [ -f "$v/community-plugins.json" ] && { args+=(-v "$v/community-plugins.json:$MOUNT_DST${v#$MOUNT_SRC}/community-plugins.json:ro"); n=$((n + 1)); }
+  done < <(find -H "$MOUNT_SRC" -maxdepth 6 -name node_modules -prune -o -type d -name .obsidian -print)
+  echo "Locked:    $n paths read-only (git hooks and config, Obsidian plugins)"
+}
+
 run_agent() {
   local agent="$1" port="$2"
   docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image $IMAGE not built yet. Run: sandpit build"
@@ -100,6 +118,7 @@ run_agent() {
   esac
 
   echo "Workspace: $MOUNT_SRC -> $MOUNT_DST"
+  add_locks
   echo "Dev port:  $port (open http://localhost:$port on this machine)"
   docker "${args[@]}" "$IMAGE" /bin/zsh
 }
