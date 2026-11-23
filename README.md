@@ -51,7 +51,7 @@ OrbStack is free for personal use. For work use, check its licence. [Docker Desk
 ### 2. Download agent-sandpit
 
 ```sh
-git clone https://github.com/<you>/agent-sandpit.git ~/agent-sandpit
+git clone https://github.com/markhamill/agent-sandpit.git ~/agent-sandpit
 ```
 
 If your Mac asks to install "command line developer tools", say yes, wait for it to finish and run the command again.
