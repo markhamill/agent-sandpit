@@ -169,7 +169,7 @@ Codex is installed in the image too. Run `codex` inside a sandpit if you use it.
 - **Your agent settings are shared, not copied.** `~/.claude` is shared, so skills, settings, memory and history are the same inside and out.
 - **The agent can't rewrite its own global rules.** `~/.claude/CLAUDE.md` is shared read-only.
 - **No GitHub access inside.** Agents commit locally and you push from your Mac, after `checkgit`.
-- **Agents can't leave code behind for your Mac to run.** In every repo it shares, the git hooks folder and git settings are locked read-only, and so are the plugins of any Obsidian vault. Agents still edit and commit as normal. ([Why this matters](#why-hooks-and-plugins-are-locked).)
+- **Agents can't leave code behind for your Mac to run.** In every repo it shares, the git hooks folder and git settings are locked read-only. Agents still edit and commit as normal. ([Why this matters](#why-git-hooks-are-locked).)
 
 ## What it doesn't protect against
 
@@ -181,7 +181,7 @@ Know this before you rely on it:
 - **A repo can be booby-trapped for later.** An agent could add a git hook or change where the repo pushes to, which would take effect on your Mac at your next push. That's what `checkgit` catches.
 - **The agent installers are `curl | bash`** from Anthropic and Google. Read the Dockerfile and decide whether you're happy with that.
 - **Your agent settings are writable.** An agent could add a hook or plugin to `~/.claude`. Inside the sandpit that's contained, but if you also run Claude Code directly on your Mac, the same settings run there too. Check `~/.claude/settings.json` now and then, or keep a separate settings folder for the sandpit.
-- **Other files your Mac runs automatically aren't locked.** Git hooks, git settings and Obsidian plugins are (see below), but not, for example, editor settings stored in the project, `.envrc` files, or npm scripts you later run on the Mac. Treat files an agent touched as untrusted until you've looked.
+- **Other files your Mac runs automatically aren't locked.** Git hooks and git settings are (see below), but not, for example, editor settings stored in the project, `.envrc` files, or npm scripts you later run on the Mac. Treat files an agent touched as untrusted until you've looked.
 - It's a container, not a separate computer. It's a sensible layer of protection, not a guarantee.
 
 ## Check it yourself
@@ -217,11 +217,11 @@ It flags remotes that don't point at your GitHub account (set `CHECKGIT_OWNER`, 
 
 `checkgit` doesn't need the sandpit. It's useful with any AI agent.
 
-## Why hooks and plugins are locked
+## Why git hooks are locked
 
 A **git hook** is a script that git runs automatically at certain moments, such as just before a commit. Hooks live in `.git/hooks` in each repo. They aren't part of what you commit, so they don't show up in `git status`, a diff or GitHub. And they run on whichever machine runs git.
 
-That makes them a way out of the sandpit. An agent tricked by something it read (a web page, an email, a dependency) could write a hook into a repo. Nothing happens inside the sandpit. But the next time git runs on your Mac in that repo, whether that's you committing, or a tool like Obsidian Git that commits for you every few minutes, the hook runs **on your Mac**, with access to everything you have. `checkgit` can't help if a tool commits before you get the chance to run it.
+That makes them a way out of the sandpit. An agent tricked by something it read (a web page, an email, a dependency) could write a hook into a repo. Nothing happens inside the sandpit. But the next time git runs on your Mac in that repo, whether that's you committing or a tool that commits for you (Obsidian Git, an editor's auto-commit, a scheduled backup), the hook runs **on your Mac**, with access to everything you have. `checkgit` can't help if a tool commits before you get the chance to run it.
 
 So when a session starts, sandpit finds every repo in the shared folder and makes two things read-only inside the sandpit:
 
@@ -230,7 +230,7 @@ So when a session starts, sandpit finds every repo in the shared folder and make
 
 Commits don't write to either, so agents commit exactly as before. Adding a remote or changing repo settings fails with "Read-only file system", which is the point. Make those changes from your Mac.
 
-**Obsidian plugins** are the same risk: each one is JavaScript that Obsidian runs on your Mac. If the shared folder holds an Obsidian vault, its `.obsidian/plugins` folder and its list of enabled plugins are locked too. Notes stay editable.
+If you keep an Obsidian vault in the shared folder, its plugins are locked too, because Obsidian runs them on your Mac. Your notes stay editable.
 
 Repos created during a session are locked from the next session.
 
