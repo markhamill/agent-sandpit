@@ -1,6 +1,8 @@
-# agent-sandbox
+# agent-sandpit
 
-Run Claude Code (and optionally Codex or Antigravity) in a throwaway Linux container instead of directly on your Mac. One command starts it, the container is deleted when you exit, and the agent only sees the folder you give it.
+A sandpit for AI coding agents: somewhere to learn, work and play, without giving them the run of your Mac.
+
+`sandpit-claude` starts Claude Code (and `sandpit-agy` starts Antigravity) in a throwaway Linux container. The container is deleted when you exit, and the agent only sees the folder you give it. Codex is installed too if you want it.
 
 I use this every day. The write-up of why, and what went wrong along the way, is in [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https://direction-matters.com/labs/notes).
 
@@ -32,40 +34,39 @@ Be clear about this before you rely on it:
 ## Install
 
 ```sh
-git clone https://github.com/<you>/agent-sandbox.git ~/agent-sandbox
-chmod +x ~/agent-sandbox/bin/*
-echo 'export PATH="$HOME/agent-sandbox/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
-sandbox build
-sandbox check
+git clone https://github.com/<you>/agent-sandpit.git ~/agent-sandpit
+echo 'export PATH="$HOME/agent-sandpit/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
+sandpit build
+sandpit check
 ```
 
-Keep the clone **outside** any folder you mount into the sandbox, so an agent can't edit the scripts that guard it.
+Keep the clone **outside** any folder you mount into the sandpit, so an agent can't edit the scripts that guard it.
 
 ## Use
 
 ```sh
 cd ~/code/my-project
-sandbox              # shell in the sandbox, with my-project mounted; then run: claude
-sandbox agy          # the same for Antigravity (mounts ~/.gemini instead of ~/.claude)
-sandbox claude 5173  # pick the dev port yourself
+sandpit-claude       # shell in the sandpit, with my-project mounted; then run: claude
+sandpit-agy          # the same for Antigravity (mounts ~/.gemini instead of ~/.claude)
+sandpit-claude 5173  # pick the dev port yourself
 ```
 
-The first time, log in to Claude Code inside the sandbox. The login is saved in your mounted `~/.claude`, so you only do it once.
+The first time, log in to Claude Code inside the sandpit. The login is saved in your mounted `~/.claude`, so you only do it once.
 
-**Dev servers:** each sandbox publishes one port on `127.0.0.1` (first free from 3000, so two sandboxes can run side by side) and sets `PORT` inside. Start your dev server on `$PORT` and open `http://localhost:<port>` on your Mac.
+**Dev servers:** each sandpit publishes one port on `127.0.0.1` (first free from 3000, so two sandpits can run side by side) and sets `PORT` inside. Start your dev server on `$PORT` and open `http://localhost:<port>` on your Mac.
 
-**One parent folder for everything:** if you keep all your projects under one folder, mount that and the sandbox starts in whichever project you're in:
+**One parent folder for everything:** if you keep all your projects under one folder, mount that and the sandpit starts in whichever project you're in:
 
 ```sh
 export AGENT_WORKSPACE="$HOME/code"   # in ~/.zshrc
-cd ~/code/website && sandbox     # mounts all of ~/code, starts in website
+cd ~/code/website && sandpit-claude   # mounts all of ~/code, starts in website
 ```
 
 | Setting | Default | What it does |
 |---|---|---|
 | `AGENT_WORKSPACE` | unset (current folder only) | Folder to mount |
-| `SANDBOX_IMAGE` | `agent-sandbox` | Image name |
-| `SANDBOX_DOCKERFILE` | the repo's `Dockerfile` | Build from your own copy |
+| `SANDPIT_IMAGE` | `agent-sandpit` | Image name |
+| `SANDPIT_DOCKERFILE` | the repo's `Dockerfile` | Build from your own copy |
 | `OLLAMA_HOST` | unset | Passed in if set, e.g. `http://host.docker.internal:11434` |
 
 ## Before you push: checkgit
@@ -82,22 +83,22 @@ It flags remotes that don't point at your GitHub accounts, any git hooks, repo-l
 ## Keeping it up to date
 
 ```sh
-sandbox build          # daily refresh of the agent CLIs
-sandbox build --fresh  # new base image and no cache: do this every few weeks for security patches
-sandbox clean          # tidy stopped containers and old images
+sandpit build          # daily refresh of the agent CLIs
+sandpit build --fresh  # new base image and no cache: do this every few weeks for security patches
+sandpit clean          # tidy stopped containers and old images
 ```
 
-Each build tags the previous image as `agent-sandbox:backup`. To roll back: `docker tag agent-sandbox:backup agent-sandbox`. Running sandboxes keep the image they started with.
+Each build tags the previous image as `agent-sandpit:backup`. To roll back: `docker tag agent-sandpit:backup agent-sandpit`. Running sandpits keep the image they started with.
 
 ## Things I learned the hard way
 
 - **Don't mount a file onto `~/.gitconfig`.** Git saves its config by writing a lock file and renaming it over the original. A bind-mounted file can't be replaced, so every `git config --global` fails with "Device or resource busy". The image includes a read-only copy at `~/.gitconfig-host` instead.
-- **Docker caches `RUN` lines that haven't changed**, so `curl ... | bash` installers never re-run and your CLIs fall behind. `sandbox build` passes the date as a build argument to refresh them daily.
-- **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandbox build` pipes the Dockerfile in with no context.
-- **Two sandboxes on one port fail** with "port is already allocated". Hence the free-port search.
+- **Docker caches `RUN` lines that haven't changed**, so `curl ... | bash` installers never re-run and your CLIs fall behind. `sandpit build` passes the date as a build argument to refresh them daily.
+- **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandpit build` pipes the Dockerfile in with no context.
+- **Two sandpits on one port fail** with "port is already allocated". Hence the free-port search.
 - **Mounting a file that doesn't exist** makes Docker create an empty folder with that name on your Mac. The script only mounts `CLAUDE.md` and `.gitconfig` if they're there.
 - **Voice mode won't work.** A Linux container on a Mac can't reach the microphone. Use macOS dictation instead.
-- **The sandbox can't see `~/Downloads`.** Put files you want the agent to read in the mounted folder.
+- **The sandpit can't see `~/Downloads`.** Put files you want the agent to read in the mounted folder.
 
 ## Licence
 

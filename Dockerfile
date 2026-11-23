@@ -1,9 +1,9 @@
-# agent-sandbox: a throwaway Linux box for AI coding agents.
-# Build with `sandbox build` (no build context: nothing from your machine is sent to Docker).
+# agent-sandpit: a throwaway Linux box for AI coding agents.
+# Build with `sandpit build` (no build context: nothing from your machine is sent to Docker).
 
 FROM node:22-bookworm
 
-# zsh for the sandbox shell
+# zsh for the sandpit shell
 RUN apt-get update && apt-get install -y --no-install-recommends zsh \
     && rm -rf /var/lib/apt/lists/*
 
@@ -23,7 +23,7 @@ ENV NPM_CONFIG_PREFIX="/home/node/.npm-global"
 ENV PATH="/home/node/.local/bin:/home/node/.npm-global/bin:${PATH}"
 
 # Docker caches every RUN line that hasn't changed, so a plain rebuild can keep old CLI
-# versions for ever. `sandbox build` passes today's date here, which re-runs the installs
+# versions for ever. `sandpit build` passes today's date here, which re-runs the installs
 # below once a day without redoing apt.
 ARG CLI_REFRESH=none
 RUN echo "CLI refresh: ${CLI_REFRESH}"

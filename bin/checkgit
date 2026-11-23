@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
-# checkgit: run on the host, in a repo, before pushing work an agent did in the sandbox.
+# checkgit: run on the host, in a repo, before pushing work an agent did in the sandpit.
 # Checks remotes, hooks and risky repo-local config, then shows what would be pushed.
 #
 #   CHECKGIT_OWNER="your-github-user|your-org" checkgit
 #
-# Keep this script outside any folder you mount into the sandbox, so an agent can't edit it.
+# Keep this script outside any folder you mount into the sandpit, so an agent can't edit it.
 
 local_owner="${CHECKGIT_OWNER:-$1}"
 [[ -n "$local_owner" ]] || { print "Set CHECKGIT_OWNER to the GitHub account(s) you push to, e.g. CHECKGIT_OWNER='me|my-org'"; exit 2; }

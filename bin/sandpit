@@ -1,27 +1,36 @@
 #!/usr/bin/env bash
-# sandbox: run AI coding agents in a throwaway Docker container.
+# sandpit: run AI coding agents in a throwaway Docker container.
+# A sandpit for agents: somewhere to learn, work and play, without the run of your Mac.
 #
-#   sandbox claude [port]    start a shell for Claude Code (default)
-#   sandbox agy [port]       start a shell for Antigravity
-#   sandbox build [--fresh]  build the image (--fresh: new base image, no cache)
-#   sandbox check            show the image's tool versions
-#   sandbox clean            remove stopped containers and dangling images
+#   sandpit-claude [port]    start a shell for Claude Code (same as: sandpit claude)
+#   sandpit-agy [port]       start a shell for Antigravity (same as: sandpit agy)
+#   sandpit build [--fresh]  build the image (--fresh: new base image, no cache)
+#   sandpit check            show the image's tool versions
+#   sandpit clean            remove stopped containers and dangling images
+#
+# sandpit-claude and sandpit-agy are links to this script; it reads its own name.
 #
 # Settings (environment variables):
 #   AGENT_WORKSPACE  folder to mount. Unset: the current folder only.
 #                    Set (e.g. ~/code): mount that whole tree and start in the
 #                    matching subfolder when you're inside it.
-#   SANDBOX_IMAGE    image name (default: agent-sandbox)
-#   SANDBOX_DOCKERFILE  path to the Dockerfile (default: the one next to bin/)
+#   SANDPIT_IMAGE    image name (default: agent-sandpit)
+#   SANDPIT_DOCKERFILE  path to the Dockerfile (default: the one next to bin/)
 #   OLLAMA_HOST      passed in if set, e.g. http://host.docker.internal:11434
 #
 # Works with macOS's bash 3.2.
 
-IMAGE="${SANDBOX_IMAGE:-agent-sandbox}"
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
-DOCKERFILE="${SANDBOX_DOCKERFILE:-$HERE/Dockerfile}"
+IMAGE="${SANDPIT_IMAGE:-agent-sandpit}"
+# Resolve links (sandpit-claude -> sandpit) to find the repo, without readlink -f (not on older macOS)
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
+done
+HERE="$(cd "$(dirname "$SELF")/.." && pwd)"
+DOCKERFILE="${SANDPIT_DOCKERFILE:-$HERE/Dockerfile}"
 
-die() { echo "sandbox: $*" >&2; exit 1; }
+die() { echo "sandpit: $*" >&2; exit 1; }
 
 port_in_use() {
   docker ps --format '{{.Ports}}' | grep -q "127.0.0.1:$1->" && return 0
@@ -31,7 +40,7 @@ port_in_use() {
   return 1
 }
 
-# First free port from $1 up, so two sandboxes can run at once
+# First free port from $1 up, so two sandpits can run at once
 free_port() {
   local p="$1"
   while port_in_use "$p"; do p=$((p + 1)); done
@@ -57,13 +66,13 @@ resolve_workspace() {
 
 run_agent() {
   local agent="$1" port="$2"
-  docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image $IMAGE not built yet. Run: sandbox build"
+  docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image $IMAGE not built yet. Run: sandpit build"
   resolve_workspace
   [ -n "$port" ] || port="$(free_port "$3")"
 
   local args
   args=(run -it --rm
-    --name "sandbox-$agent-$$"
+    --name "sandpit-$agent-$$"
     -u node
     -p "127.0.0.1:$port:$port"
     -e PORT="$port"
@@ -104,15 +113,20 @@ build_image() {
   docker image inspect "$IMAGE" >/dev/null 2>&1 && docker tag "$IMAGE" "$IMAGE:backup"
   # "-" reads the Dockerfile from stdin with no build context, so nothing from your
   # machine (like your home folder) is sent to Docker.
-  docker build "${opts[@]}" -t "$IMAGE" - < "$DOCKERFILE" && echo "Built $IMAGE. New sandboxes use it; running ones keep the old image."
+  docker build "${opts[@]}" -t "$IMAGE" - < "$DOCKERFILE" && echo "Built $IMAGE. New sandpits use it; running ones keep the old image."
 }
 
-case "${1:-claude}" in
+case "$(basename "$0")" in
+  sandpit-claude) run_agent claude "$1" 3000; exit ;;
+  sandpit-agy)    run_agent agy "$1" 8443; exit ;;
+esac
+
+case "${1:-help}" in
   claude) run_agent claude "$2" 3000 ;;
   agy)    run_agent agy "$2" 8443 ;;
   build)  build_image "$2" ;;
   check)  docker run --rm -u node "$IMAGE" zsh -ic 'node --version; claude --version; print -P "Prompt: $PROMPT"' ;;
   clean)  docker container prune -f && docker image prune -f ;;
-  -h|--help|help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *) die "unknown command: $1 (try: sandbox help)" ;;
+  -h|--help|help) sed -n '2,22p' "$SELF" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command: $1 (try: sandpit help)" ;;
 esac
