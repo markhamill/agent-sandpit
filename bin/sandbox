@@ -9,7 +9,7 @@
 #
 # Settings (environment variables):
 #   AGENT_WORKSPACE  folder to mount. Unset: the current folder only.
-#                    Set (e.g. ~/AI-Workspace): mount that whole tree and start in the
+#                    Set (e.g. ~/code): mount that whole tree and start in the
 #                    matching subfolder when you're inside it.
 #   SANDBOX_IMAGE    image name (default: agent-sandbox)
 #   SANDBOX_DOCKERFILE  path to the Dockerfile (default: the one next to bin/)
