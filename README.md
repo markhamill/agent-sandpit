@@ -116,7 +116,7 @@ That's it. From now on it's `cd` into a project, `sandpit-claude`, then `claude`
 | `command not found: sandpit-claude` | Terminal can't find the commands | Open a new Terminal window. If it persists, repeat step 3 |
 | `image agent-sandpit not built yet` | The build hasn't been done | Run `sandpit build` |
 | `refusing to mount /Users/you` | You ran it from your home folder | `cd` into a project folder first |
-| Your dev server doesn't load in the browser | It's on a different port | Use the port the sandpit printed when it started (see below) |
+| Your dev server doesn't load in the browser | It's listening on localhost, or on a different port | Start it with `--host 0.0.0.0 --port $PORT` and use the port the sandpit printed ([dev servers](#everyday-use)) |
 
 ## Everyday use
 
@@ -126,7 +126,25 @@ sandpit-agy          # the same for Google Antigravity (uses ~/.gemini instead o
 sandpit-claude 5173  # choose the dev server port yourself
 ```
 
-**Dev servers:** each sandpit opens one port to your Mac (the first free one from 3000, so two sandpits can run side by side) and sets `PORT` inside. Start your dev server on `$PORT` and open `http://localhost:<port>` in your Mac's browser.
+**Dev servers:** to preview a site in your Mac's browser, two things need to line up.
+
+1. **The port.** Each sandpit opens one port to your Mac (the first free one from 3000, so two sandpits can run side by side), prints it when it starts, and puts it in `PORT` inside.
+2. **Listening on 0.0.0.0, not localhost.** Inside the sandpit, "localhost" means the sandpit itself, so a dev server listening only there can't be reached from your Mac. It needs to listen on `0.0.0.0` (every network connection the sandpit has).
+
+Most dev servers default to localhost and their own port, so tell them both:
+
+```sh
+npm run dev -- --host 0.0.0.0 --port $PORT    # Vite (also works with pnpm dev)
+npx next dev -H 0.0.0.0 -p $PORT              # Next.js
+```
+
+Then open `http://localhost:<port>` in your Mac's browser, using the port the sandpit printed. To make it automatic in a Vite project, set it once in `vite.config`:
+
+```js
+server: { host: "0.0.0.0", port: Number(process.env.PORT) || 3000 }
+```
+
+The port is only open to your own Mac (`127.0.0.1`), not to other machines on your network.
 
 **All your projects in one folder?** Share the whole folder instead, and the sandpit starts in whichever project you're in:
 
@@ -204,6 +222,7 @@ sandpit build
 - **Docker caches build steps that haven't changed**, so `curl ... | bash` installers never re-run and the agent tools fall behind. `sandpit build` passes the date in to refresh them daily.
 - **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandpit build` sends only the Dockerfile.
 - **Two sandpits on one port fail** with "port is already allocated". Hence the free-port search.
+- **A dev server on localhost is invisible from your Mac.** Inside a container, localhost is the container. Listen on 0.0.0.0.
 - **Sharing a file that doesn't exist** makes Docker create an empty folder with that name on your Mac. The script only shares `CLAUDE.md` and `.gitconfig` if they're there.
 - **Voice mode won't work.** A Linux container on a Mac can't reach the microphone. Use macOS dictation instead.
 - **The sandpit can't see `~/Downloads`.** Put files you want the agent to read in the project folder.
