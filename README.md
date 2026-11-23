@@ -251,6 +251,7 @@ sandpit build
 
 ## Things I learned the hard way
 
+- **Changing your git config on the Mac hides it from running sandpits.** `git config --global` replaces `~/.gitconfig` with a new file, and a sandpit that's already running keeps looking at the old one, which no longer exists. Your name and email are also passed in when a session starts, so commits keep working; other settings come back at the next session.
 - **Don't share a single file onto `~/.gitconfig`.** Git saves its config by writing a new file and renaming it over the old one, and a shared file can't be replaced, so every `git config --global` fails with "Device or resource busy". The image reads a read-only copy at `~/.gitconfig-host` instead.
 - **Docker caches build steps that haven't changed**, so `curl ... | bash` installers never re-run and the agent tools fall behind. `sandpit build` passes the date in to refresh them daily.
 - **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandpit build` sends only the Dockerfile.
