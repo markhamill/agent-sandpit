@@ -2,103 +2,213 @@
 
 A sandpit for AI coding agents: somewhere to learn, work and play, without giving them the run of your Mac.
 
-`sandpit-claude` starts Claude Code (and `sandpit-agy` starts Antigravity) in a throwaway Linux container. The container is deleted when you exit, and the agent only sees the folder you give it. Codex is installed too if you want it.
+AI coding agents like Claude Code can read, write and run anything your user account can. That's what makes them useful, and it's also what makes running them directly on your Mac a bit of a gamble. agent-sandpit runs them inside a small, throwaway Linux box instead. The agent sees only the project folder you give it. When you exit, the box is deleted.
 
-I use this every day. The write-up of why, and what went wrong along the way, is in [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https://direction-matters.com/labs/notes).
+You type `sandpit-claude` instead of `claude`, and you're in.
 
-## What it does
+## How it fits together
 
-- **Agents run in Linux, not on your Mac.** They can't see your home folder, SSH keys, cloud credentials, browser or `~/Downloads`.
-- **Only the folder you choose is mounted.** By default that's the folder you run it from. It refuses to mount your whole home folder.
-- **Throwaway.** The container is removed on exit (`--rm`). Anything that matters is on disk in the mounted folder.
-- **Your agent settings are shared, not copied.** `~/.claude` is mounted in, so skills, settings, memory and history are the same inside and out.
-- **The agent can't rewrite its own global rules.** `~/.claude/CLAUDE.md` is mounted read-only.
-- **No GitHub access inside.** Agents commit locally and you push from your Mac, after running `checkgit`.
+```
+ Your Mac                                  The sandpit (a Linux container)
+ ────────                                  ───────────────────────────────
+ ~/code/my-project   ── shared folder ──>  /workspaces/my-project   (the agent works here)
+ ~/.claude           ── shared folder ──>  agent settings and login
+ ~/.gitconfig        ── read-only ──────>  your name and email for commits
 
-## What it doesn't protect against
+ Everything else on your Mac               not visible inside
+ (home folder, SSH keys, passwords,
+  Downloads, browser)
+```
 
-Be clear about this before you rely on it:
+The container is the box. **OrbStack** (or Docker Desktop) is the app on your Mac that runs boxes like this. The **Dockerfile** is the recipe for what goes in the box, and `sandpit build` follows that recipe once to make an **image**, a ready-made box that each session starts from.
 
-- **The agent can use your Claude login.** `~/.claude` holds it, and it's mounted read-write.
-- **Anything in the mounted folder can be changed or deleted.** Commit before you start a session (or snapshot with `git add -A && git commit -m wip`).
-- **The network is open.** The agent can reach the internet, and `host.docker.internal` reaches services on your Mac (for Ollama). Add your own firewall rules if you need tighter limits.
-- **A repo can be booby-trapped for later.** An agent could add a git hook or change a remote, which would run or leak on your Mac when you next push. That's what `checkgit` is for.
-- **The installers are `curl | bash`** from Anthropic and Google. Read the Dockerfile and decide whether you're happy with that.
-- It's a container, not a VM. It's a sensible layer, not a guarantee.
+## Getting started
 
-## Requirements
+About 15 minutes the first time, most of it waiting for downloads. You'll need a Mac and the Terminal app (in Applications → Utilities). Each grey block below is something to paste into Terminal and run with Enter.
 
-- macOS or Linux with Docker. On a Mac, [OrbStack](https://orbstack.dev) (what I use) or Docker Desktop.
-- `zsh` on the host for `checkgit` (the default shell on macOS).
+### 1. Install OrbStack and leave it running
 
-## Install
+OrbStack runs the container. Download it from [orbstack.dev](https://orbstack.dev), or if you use Homebrew:
+
+```sh
+brew install --cask orbstack
+```
+
+Open OrbStack once and go through its setup. Then, so it's always there when you need it, turn on **Start at login** in OrbStack's settings. The sandpit only works while OrbStack is running. You'll see its icon in the menu bar.
+
+Check it's working:
+
+```sh
+docker version
+```
+
+You should see a "Server" section. If you see "Cannot connect to the Docker daemon", OrbStack isn't running. Open it and try again.
+
+OrbStack is free for personal use. For work use, check its licence. [Docker Desktop](https://www.docker.com/products/docker-desktop/) also works, with the same steps.
+
+### 2. Download agent-sandpit
 
 ```sh
 git clone https://github.com/<you>/agent-sandpit.git ~/agent-sandpit
-echo 'export PATH="$HOME/agent-sandpit/bin:$PATH"' >> ~/.zshrc   # then open a new terminal
+```
+
+If your Mac asks to install "command line developer tools", say yes, wait for it to finish and run the command again.
+
+This puts everything in a folder called `agent-sandpit` in your home folder. Leave it there: it's deliberately **outside** your projects, so an agent working in a project can't edit the tools that keep it in the sandpit.
+
+### 3. Make the commands available
+
+```sh
+echo 'export PATH="$HOME/agent-sandpit/bin:$PATH"' >> ~/.zshrc
+```
+
+This tells Terminal where to find `sandpit-claude` and the other commands. **Close Terminal and open a new window** so it takes effect.
+
+### 4. Build the sandpit
+
+```sh
 sandpit build
+```
+
+You can run this from any folder. It uses the Dockerfile inside `~/agent-sandpit`, so there's nothing to copy or create. The first build takes a few minutes. When it says "Built agent-sandpit", check it:
+
+```sh
 sandpit check
 ```
 
-Keep the clone **outside** any folder you mount into the sandpit, so an agent can't edit the scripts that guard it.
+You should see a Node version and a Claude Code version.
 
-## Use
+### 5. Start your first session
+
+Go to the project folder you want the agent to work in, then start the sandpit:
 
 ```sh
 cd ~/code/my-project
-sandpit-claude       # shell in the sandpit, with my-project mounted; then run: claude
-sandpit-agy          # the same for Antigravity (mounts ~/.gemini instead of ~/.claude)
-sandpit-claude 5173  # pick the dev port yourself
+sandpit-claude
 ```
 
-The first time, log in to Claude Code inside the sandpit. The login is saved in your mounted `~/.claude`, so you only do it once.
-
-**Dev servers:** each sandpit publishes one port on `127.0.0.1` (first free from 3000, so two sandpits can run side by side) and sets `PORT` inside. Start your dev server on `$PORT` and open `http://localhost:<port>` on your Mac.
-
-**One parent folder for everything:** if you keep all your projects under one folder, mount that and the sandpit starts in whichever project you're in:
+Your prompt changes to green `node@…`. You're now inside the sandpit. Start Claude Code as usual:
 
 ```sh
-export AGENT_WORKSPACE="$HOME/code"   # in ~/.zshrc
-cd ~/code/website && sandpit-claude   # mounts all of ~/code, starts in website
+claude
 ```
 
-| Setting | Default | What it does |
-|---|---|---|
-| `AGENT_WORKSPACE` | unset (current folder only) | Folder to mount |
-| `SANDPIT_IMAGE` | `agent-sandpit` | Image name |
-| `SANDPIT_DOCKERFILE` | the repo's `Dockerfile` | Build from your own copy |
-| `OLLAMA_HOST` | unset | Passed in if set, e.g. `http://host.docker.internal:11434` |
+The first time, it asks you to log in. The login is saved on your Mac, so you only do this once.
 
-## Before you push: checkgit
+When you're finished, exit Claude Code, then type `exit` to leave the sandpit. The container is deleted. Your project files stay, because they live on your Mac.
 
-Run on your Mac, inside the repo, before every push of agent-written work:
+### 6. Before you push to GitHub
+
+The sandpit has no access to GitHub, on purpose. Agents can commit, but you push, from a normal Terminal window on your Mac. Before you do, run `checkgit` in the project to make sure nothing has been tampered with (more on this [below](#before-you-push-checkgit)):
 
 ```sh
-export CHECKGIT_OWNER="your-github-user|your-org"   # in ~/.zshrc
+export CHECKGIT_OWNER="your-github-username"   # once, in ~/.zshrc
 checkgit && git push
 ```
 
-It flags remotes that don't point at your GitHub accounts, any git hooks, repo-local settings that can run commands or redirect traffic (`core.hooksPath`, `core.fsmonitor`, `url.*.insteadOf`, filters, aliases and so on), and lists the commits you're about to push. It runs git with the risky settings switched off while it looks.
+That's it. From now on it's `cd` into a project, `sandpit-claude`, then `claude`.
+
+## If something goes wrong
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `Cannot connect to the Docker daemon` | OrbStack isn't running | Open OrbStack, and turn on Start at login |
+| `command not found: sandpit-claude` | Terminal can't find the commands | Open a new Terminal window. If it persists, repeat step 3 |
+| `image agent-sandpit not built yet` | The build hasn't been done | Run `sandpit build` |
+| `refusing to mount /Users/you` | You ran it from your home folder | `cd` into a project folder first |
+| Your dev server doesn't load in the browser | It's on a different port | Use the port the sandpit printed when it started (see below) |
+
+## Everyday use
+
+```sh
+sandpit-claude       # start a Claude Code sandpit in the current folder
+sandpit-agy          # the same for Google Antigravity (uses ~/.gemini instead of ~/.claude)
+sandpit-claude 5173  # choose the dev server port yourself
+```
+
+**Dev servers:** each sandpit opens one port to your Mac (the first free one from 3000, so two sandpits can run side by side) and sets `PORT` inside. Start your dev server on `$PORT` and open `http://localhost:<port>` in your Mac's browser.
+
+**All your projects in one folder?** Share the whole folder instead, and the sandpit starts in whichever project you're in:
+
+```sh
+export AGENT_WORKSPACE="$HOME/code"     # once, in ~/.zshrc
+cd ~/code/website && sandpit-claude     # shares all of ~/code, starts in website
+```
+
+Codex is installed in the image too. Run `codex` inside a sandpit if you use it.
+
+## What it protects
+
+- **Agents run in Linux, not on your Mac.** They can't see your home folder, SSH keys, cloud credentials, browser or `~/Downloads`.
+- **Only the folder you choose is shared.** By default that's the folder you run it from. It refuses to share your whole home folder.
+- **Throwaway.** The container is removed on exit. Anything that matters is in your project folder.
+- **Your agent settings are shared, not copied.** `~/.claude` is shared, so skills, settings, memory and history are the same inside and out.
+- **The agent can't rewrite its own global rules.** `~/.claude/CLAUDE.md` is shared read-only.
+- **No GitHub access inside.** Agents commit locally and you push from your Mac, after `checkgit`.
+
+## What it doesn't protect against
+
+Know this before you rely on it:
+
+- **The agent can use your Claude login.** It's in `~/.claude`, which is shared.
+- **Anything in the shared folder can be changed or deleted.** Commit before you start a session.
+- **The network is open.** The agent can reach the internet, and `host.docker.internal` reaches apps on your Mac (used for Ollama).
+- **A repo can be booby-trapped for later.** An agent could add a git hook or change where the repo pushes to, which would take effect on your Mac at your next push. That's what `checkgit` catches.
+- **The agent installers are `curl | bash`** from Anthropic and Google. Read the Dockerfile and decide whether you're happy with that.
+- It's a container, not a separate computer. It's a sensible layer of protection, not a guarantee.
+
+## Before you push: checkgit
+
+Run it on your Mac, inside the repo, before every push of work an agent did:
+
+```sh
+checkgit && git push
+```
+
+It flags remotes that don't point at your GitHub account (set `CHECKGIT_OWNER`, e.g. `"me|my-org"` for several), any git hooks, repo settings that can run commands or redirect traffic (`core.hooksPath`, `core.fsmonitor`, `url.*.insteadOf`, filters, aliases and so on), and lists the commits you're about to push. It switches those risky settings off while it looks. If it says CHECK FAILED, read the WARN lines before pushing.
+
+`checkgit` doesn't need the sandpit. It's useful with any AI agent.
 
 ## Keeping it up to date
 
 ```sh
-sandpit build          # daily refresh of the agent CLIs
-sandpit build --fresh  # new base image and no cache: do this every few weeks for security patches
-sandpit clean          # tidy stopped containers and old images
+sandpit build          # refreshes the agent tools (safe to run daily)
+sandpit build --fresh  # rebuilds from scratch with the latest Linux patches: every few weeks
+sandpit clean          # tidies away old containers and images
+cd ~/agent-sandpit && git pull   # get the latest version of agent-sandpit itself
 ```
 
-Each build tags the previous image as `agent-sandpit:backup`. To roll back: `docker tag agent-sandpit:backup agent-sandpit`. Running sandpits keep the image they started with.
+Each build keeps the previous image as `agent-sandpit:backup`. If a new build misbehaves: `docker tag agent-sandpit:backup agent-sandpit`. Sandpits that are already running keep the image they started with.
+
+## Customising
+
+To change what's in the box (add a tool, remove Codex), copy the Dockerfile somewhere outside the repo so `git pull` won't overwrite it, edit it, and point the build at it:
+
+```sh
+cp ~/agent-sandpit/Dockerfile ~/.Dockerfile.sandpit
+export SANDPIT_DOCKERFILE="$HOME/.Dockerfile.sandpit"   # in ~/.zshrc
+sandpit build
+```
+
+| Setting | Default | What it does |
+|---|---|---|
+| `AGENT_WORKSPACE` | unset (current folder only) | Folder to share |
+| `SANDPIT_DOCKERFILE` | the repo's `Dockerfile` | Build from your own copy |
+| `SANDPIT_IMAGE` | `agent-sandpit` | Image name |
+| `OLLAMA_HOST` | unset | Passed in if set, e.g. `http://host.docker.internal:11434` |
+| `CHECKGIT_OWNER` | unset | GitHub account(s) `checkgit` expects remotes to point at |
 
 ## Things I learned the hard way
 
-- **Don't mount a file onto `~/.gitconfig`.** Git saves its config by writing a lock file and renaming it over the original. A bind-mounted file can't be replaced, so every `git config --global` fails with "Device or resource busy". The image includes a read-only copy at `~/.gitconfig-host` instead.
-- **Docker caches `RUN` lines that haven't changed**, so `curl ... | bash` installers never re-run and your CLIs fall behind. `sandpit build` passes the date as a build argument to refresh them daily.
-- **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandpit build` pipes the Dockerfile in with no context.
+- **Don't share a single file onto `~/.gitconfig`.** Git saves its config by writing a new file and renaming it over the old one, and a shared file can't be replaced, so every `git config --global` fails with "Device or resource busy". The image reads a read-only copy at `~/.gitconfig-host` instead.
+- **Docker caches build steps that haven't changed**, so `curl ... | bash` installers never re-run and the agent tools fall behind. `sandpit build` passes the date in to refresh them daily.
+- **Build without a context.** `docker build -f Dockerfile ~` sends your entire home folder to Docker on every build. `sandpit build` sends only the Dockerfile.
 - **Two sandpits on one port fail** with "port is already allocated". Hence the free-port search.
-- **Mounting a file that doesn't exist** makes Docker create an empty folder with that name on your Mac. The script only mounts `CLAUDE.md` and `.gitconfig` if they're there.
+- **Sharing a file that doesn't exist** makes Docker create an empty folder with that name on your Mac. The script only shares `CLAUDE.md` and `.gitconfig` if they're there.
 - **Voice mode won't work.** A Linux container on a Mac can't reach the microphone. Use macOS dictation instead.
-- **The sandpit can't see `~/Downloads`.** Put files you want the agent to read in the mounted folder.
+- **The sandpit can't see `~/Downloads`.** Put files you want the agent to read in the project folder.
+
+Longer write-up: [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https://direction-matters.com/labs/notes).
 
 ## Licence
 
