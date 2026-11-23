@@ -6,6 +6,8 @@ AI coding agents like Claude Code can read, write and run anything your user acc
 
 You type `sandpit-claude` instead of `claude`, and you're in.
 
+> **Please read this first.** agent-sandpit is what I built for my own work, from my own experience. It's safer than running AI agents directly on your Mac, but it isn't a security product, it hasn't been independently audited, and it can't make an agent safe. Read what it [doesn't protect against](#what-it-doesnt-protect-against), do your own research and security checks before you rely on it, and use it at your own risk. Tested on an Apple Silicon (M1) Mac with OrbStack. Docker Desktop and Linux should work but haven't been tested.
+
 ## How it fits together
 
 ```
@@ -182,6 +184,27 @@ Know this before you rely on it:
 - **Other files your Mac runs automatically aren't locked.** Git hooks, git settings and Obsidian plugins are (see below), but not, for example, editor settings stored in the project, `.envrc` files, or npm scripts you later run on the Mac. Treat files an agent touched as untrusted until you've looked.
 - It's a container, not a separate computer. It's a sensible layer of protection, not a guarantee.
 
+## Check it yourself
+
+Don't take the protections on trust. Start a session in a repo, then try the things an agent shouldn't be able to do. Each of these should **fail** with "Read-only file system" or a similar error:
+
+```sh
+touch .git/hooks/test                   # add a git hook
+git config --local test.x 1             # change the repo's settings
+git remote add test https://example.com # point the repo somewhere else
+touch ~/.claude/CLAUDE.md               # edit your global rules
+ls ~/.ssh                               # should say "No such file or directory"
+```
+
+And these should **work**:
+
+```sh
+git commit --allow-empty -m "test" && git reset --soft HEAD~1   # commit, then undo it
+touch test.txt && rm test.txt                                    # edit project files
+```
+
+If anything in the first list succeeds, undo it (`rm .git/hooks/test`, `git config --local --unset test.x`, `git remote remove test`) and don't rely on the sandpit until you've found out why. A common cause: if you changed your shell setup, the Terminal window you started from may still have the old version. Open a new window and try again.
+
 ## Before you push: checkgit
 
 Run it on your Mac, inside the repo, before every push of work an agent did:
@@ -265,4 +288,4 @@ Longer write-up: [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). Provided as is, with no warranty: see the licence for the full terms.
