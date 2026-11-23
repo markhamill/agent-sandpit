@@ -126,9 +126,13 @@ sandpit-agy          # the same for Google Antigravity (uses ~/.gemini instead o
 sandpit-claude 5173  # choose the dev server port yourself
 ```
 
+**Running more than one session:** go ahead. Open another Terminal window and run `sandpit-claude` again, in the same project or a different one. Each session is its own container with its own port: the first gets 3000, the next 3001, and so on, and each prints its port when it starts. They don't interfere with each other, and when you exit one the others carry on. Each uses about 350 MB of memory, so two or three at once is fine on most Macs.
+
+One thing to watch: two agents in the **same** project folder are editing the same files. That's no different from two people working in one folder, so give them separate tasks, or separate git branches in separate folders (`git worktree add ../my-project-b`).
+
 **Dev servers:** to preview a site in your Mac's browser, two things need to line up.
 
-1. **The port.** Each sandpit opens one port to your Mac (the first free one from 3000, so two sandpits can run side by side), prints it when it starts, and puts it in `PORT` inside.
+1. **The port.** Each sandpit opens one port to your Mac (the first free one from 3000), prints it when it starts, and puts it in `PORT` inside.
 2. **Listening on 0.0.0.0, not localhost.** Inside the sandpit, "localhost" means the sandpit itself, so a dev server listening only there can't be reached from your Mac. It needs to listen on `0.0.0.0` (every network connection the sandpit has).
 
 Most dev servers default to localhost and their own port, so tell them both:
@@ -173,6 +177,8 @@ Know this before you rely on it:
 - **The network is open.** The agent can reach the internet, and `host.docker.internal` reaches apps on your Mac (used for Ollama).
 - **A repo can be booby-trapped for later.** An agent could add a git hook or change where the repo pushes to, which would take effect on your Mac at your next push. That's what `checkgit` catches.
 - **The agent installers are `curl | bash`** from Anthropic and Google. Read the Dockerfile and decide whether you're happy with that.
+- **Your agent settings are writable.** An agent could add a hook or plugin to `~/.claude`. Inside the sandpit that's contained, but if you also run Claude Code directly on your Mac, the same settings run there too. Check `~/.claude/settings.json` now and then, or keep a separate settings folder for the sandpit.
+- **Anything your Mac runs automatically from the shared folder runs outside the sandpit.** For example: git hooks, if a tool on your Mac commits or pushes for you (`checkgit` only covers pushes you make yourself); editor or Obsidian plugins stored in the project; `.envrc` files; npm scripts you later run on the Mac. Treat files an agent touched as untrusted until you've looked.
 - It's a container, not a separate computer. It's a sensible layer of protection, not a guarantee.
 
 ## Before you push: checkgit
