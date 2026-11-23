@@ -284,7 +284,7 @@ sandpit build
 - **Voice mode won't work.** A Linux container on a Mac can't reach the microphone. Use macOS dictation instead.
 - **The sandpit can't see `~/Downloads`.** Put files you want the agent to read in the project folder.
 
-Longer write-up: [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https://direction-matters.com/labs/notes).
+Longer write-ups: [Dropping VS Code: A Leaner Sandbox for AI Coding Agents](https://direction-matters.com/labs/notes/013), and [what I found when I audited it](https://direction-matters.com/labs/notes/014).
 
 ## Licence
 
