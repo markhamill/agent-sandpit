@@ -1,0 +1,62 @@
+#!/usr/bin/env zsh
+# checkgit: run on the host, in a repo, before pushing work an agent did in the sandbox.
+# Checks remotes, hooks and risky repo-local config, then shows what would be pushed.
+#
+#   CHECKGIT_OWNER="your-github-user|your-org" checkgit
+#
+# Keep this script outside any folder you mount into the sandbox, so an agent can't edit it.
+
+local_owner="${CHECKGIT_OWNER:-$1}"
+[[ -n "$local_owner" ]] || { print "Set CHECKGIT_OWNER to the GitHub account(s) you push to, e.g. CHECKGIT_OWNER='me|my-org'"; exit 2; }
+
+# Neutralise repo-local settings that could run commands while we look around.
+g=(git --no-pager -c core.fsmonitor=false -c core.pager=cat -c diff.external=)
+problems=0
+
+top=$("${g[@]}" rev-parse --show-toplevel 2>/dev/null) || { print "Not inside a git repo."; exit 1; }
+print "Repo: $top\n"
+
+print "== Remotes"
+while IFS= read -r line; do
+  if [[ "$line" =~ "[[:space:]](https://github\.com/|git@github\.com:|ssh://git@github\.com/)($local_owner)/[^[:space:]]+[[:space:]]" ]]; then
+    print "  ok    $line"
+  else
+    print "  WARN  $line"; (( problems++ ))
+  fi
+done < <("${g[@]}" remote -v)
+
+print "\n== Hooks"
+hooks=$("${g[@]}" -C "$top" rev-parse --path-format=absolute --git-path hooks)
+found=0
+for f in "$hooks"/*(N); do
+  [[ "$f" == *.sample ]] && continue
+  print "  WARN  hook present: $f"; found=1; (( problems++ ))
+done
+(( found )) || print "  ok    none (looked in $hooks)"
+
+print "\n== Repo config that can run commands or redirect traffic"
+risky=$("${g[@]}" config --local --list --name-only 2>/dev/null | grep -iE \
+  '^(core\.(hookspath|fsmonitor|sshcommand|pager|editor|askpass|gitproxy|worktree)|credential\.|url\..+\.(insteadof|pushinsteadof)|include\.|includeif\.|filter\.|diff\..+\.(textconv|command)|merge\..+\.driver|alias\.|http\.|remote\..+\.(receivepack|uploadpack|vcs))')
+if [[ -n "$risky" ]]; then
+  print -r -- "$risky" | while IFS= read -r line; do
+    print "  WARN  $line = $("${g[@]}" config --local --get-all "$line" | head -1)"
+  done
+  (( problems++ ))
+else
+  print "  ok    nothing unusual"
+fi
+
+print "\n== Commits not yet pushed (compared with last fetch)"
+if "${g[@]}" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+  out=$("${g[@]}" log --oneline --no-decorate '@{u}..HEAD')
+  [[ -n "$out" ]] && print -r -- "$out" | sed 's/^/  /' || print "  (none)"
+else
+  print "  No upstream branch set; last 5 commits:"
+  "${g[@]}" log --oneline --no-decorate -5 | sed 's/^/  /'
+fi
+
+print
+if (( problems )); then
+  print "CHECK FAILED: look at the WARN lines before pushing."; exit 1
+fi
+print "All clear. Safe to: git push"

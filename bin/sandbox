@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# sandbox: run AI coding agents in a throwaway Docker container.
+#
+#   sandbox claude [port]    start a shell for Claude Code (default)
+#   sandbox agy [port]       start a shell for Antigravity
+#   sandbox build [--fresh]  build the image (--fresh: new base image, no cache)
+#   sandbox check            show the image's tool versions
+#   sandbox clean            remove stopped containers and dangling images
+#
+# Settings (environment variables):
+#   AGENT_WORKSPACE  folder to mount. Unset: the current folder only.
+#                    Set (e.g. ~/AI-Workspace): mount that whole tree and start in the
+#                    matching subfolder when you're inside it.
+#   SANDBOX_IMAGE    image name (default: agent-sandbox)
+#   SANDBOX_DOCKERFILE  path to the Dockerfile (default: the one next to bin/)
+#   OLLAMA_HOST      passed in if set, e.g. http://host.docker.internal:11434
+#
+# Works with macOS's bash 3.2.
+
+IMAGE="${SANDBOX_IMAGE:-agent-sandbox}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+DOCKERFILE="${SANDBOX_DOCKERFILE:-$HERE/Dockerfile}"
+
+die() { echo "sandbox: $*" >&2; exit 1; }
+
+port_in_use() {
+  docker ps --format '{{.Ports}}' | grep -q "127.0.0.1:$1->" && return 0
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
+
+# First free port from $1 up, so two sandboxes can run at once
+free_port() {
+  local p="$1"
+  while port_in_use "$p"; do p=$((p + 1)); done
+  echo "$p"
+}
+
+# Sets MOUNT_SRC, MOUNT_DST and WORKDIR
+resolve_workspace() {
+  if [ -n "$AGENT_WORKSPACE" ]; then
+    MOUNT_SRC="$(cd "$AGENT_WORKSPACE" 2>/dev/null && pwd)" || die "AGENT_WORKSPACE not found: $AGENT_WORKSPACE"
+  else
+    MOUNT_SRC="$PWD"
+  fi
+  case "$MOUNT_SRC" in
+    "$HOME"|/) die "refusing to mount $MOUNT_SRC. cd into a project folder, or set AGENT_WORKSPACE." ;;
+  esac
+  MOUNT_DST="/workspaces/$(basename "$MOUNT_SRC")"
+  case "$PWD/" in
+    "$MOUNT_SRC"/*) WORKDIR="$MOUNT_DST${PWD#$MOUNT_SRC}" ;;
+    *) WORKDIR="$MOUNT_DST" ;;
+  esac
+}
+
+run_agent() {
+  local agent="$1" port="$2"
+  docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image $IMAGE not built yet. Run: sandbox build"
+  resolve_workspace
+  [ -n "$port" ] || port="$(free_port "$3")"
+
+  local args
+  args=(run -it --rm
+    --name "sandbox-$agent-$$"
+    -u node
+    -p "127.0.0.1:$port:$port"
+    -e PORT="$port"
+    --add-host=host.docker.internal:host-gateway
+    -w "$WORKDIR"
+    -v "$MOUNT_SRC:$MOUNT_DST")
+
+  # Host git identity, read-only, included by the image's own ~/.gitconfig
+  [ -f "$HOME/.gitconfig" ] && args+=(-v "$HOME/.gitconfig:/home/node/.gitconfig-host:ro")
+  [ -n "$OLLAMA_HOST" ] && args+=(-e OLLAMA_HOST="$OLLAMA_HOST")
+
+  case "$agent" in
+    claude)
+      mkdir -p "$HOME/.claude"
+      args+=(-v "$HOME/.claude:/home/node/.claude" -e CLAUDE_CONFIG_DIR=/home/node/.claude)
+      # Global rules read-only, so an agent can't rewrite its own instructions.
+      # Only if the file exists: otherwise Docker would create a folder in its place.
+      [ -f "$HOME/.claude/CLAUDE.md" ] && args+=(-v "$HOME/.claude/CLAUDE.md:/home/node/.claude/CLAUDE.md:ro")
+      ;;
+    agy)
+      mkdir -p "$HOME/.gemini"
+      args+=(-v "$HOME/.gemini:/home/node/.gemini")
+      [ -f "$HOME/.gemini/AGENTS.md" ] && args+=(-v "$HOME/.gemini/AGENTS.md:/home/node/.gemini/AGENTS.md:ro")
+      ;;
+  esac
+
+  echo "Workspace: $MOUNT_SRC -> $MOUNT_DST"
+  echo "Dev port:  $port (open http://localhost:$port on this machine)"
+  docker "${args[@]}" "$IMAGE" /bin/zsh
+}
+
+build_image() {
+  [ -f "$DOCKERFILE" ] || die "no Dockerfile at $DOCKERFILE"
+  local opts
+  opts=(--build-arg "CLI_REFRESH=$(date +%F)")
+  [ "$1" = "--fresh" ] && opts+=(--pull --no-cache)
+  # Keep the previous image so you can roll back with: docker tag $IMAGE:backup $IMAGE
+  docker image inspect "$IMAGE" >/dev/null 2>&1 && docker tag "$IMAGE" "$IMAGE:backup"
+  # "-" reads the Dockerfile from stdin with no build context, so nothing from your
+  # machine (like your home folder) is sent to Docker.
+  docker build "${opts[@]}" -t "$IMAGE" - < "$DOCKERFILE" && echo "Built $IMAGE. New sandboxes use it; running ones keep the old image."
+}
+
+case "${1:-claude}" in
+  claude) run_agent claude "$2" 3000 ;;
+  agy)    run_agent agy "$2" 8443 ;;
+  build)  build_image "$2" ;;
+  check)  docker run --rm -u node "$IMAGE" zsh -ic 'node --version; claude --version; print -P "Prompt: $PROMPT"' ;;
+  clean)  docker container prune -f && docker image prune -f ;;
+  -h|--help|help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) die "unknown command: $1 (try: sandbox help)" ;;
+esac
