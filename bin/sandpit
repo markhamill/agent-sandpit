@@ -16,6 +16,8 @@
 #                    matching subfolder when you're inside it.
 #   SANDPIT_IMAGE    image name (default: agent-sandpit)
 #   SANDPIT_DOCKERFILE  path to the Dockerfile (default: the one next to bin/)
+#   SANDPIT_MEMORY   memory limit per session (default: 6g)
+#   SANDPIT_PIDS     process limit per session (default: 2048)
 #   OLLAMA_HOST      passed in if set, e.g. http://host.docker.internal:11434
 #
 # Works with macOS's bash 3.2.
@@ -92,6 +94,10 @@ run_agent() {
   args=(run -it --rm
     --name "sandpit-$agent-$$"
     -u node
+    --security-opt no-new-privileges   # nothing inside can gain extra rights
+    --cap-drop ALL                     # no admin abilities; none are needed
+    --pids-limit "${SANDPIT_PIDS:-2048}"   # a runaway process can't fork forever
+    --memory "${SANDPIT_MEMORY:-6g}"       # one session can't use all of Docker's memory
     -p "127.0.0.1:$port:$port"
     -e PORT="$port"
     --add-host=host.docker.internal:host-gateway

@@ -118,6 +118,7 @@ That's it. From now on it's `cd` into a project, `sandpit-claude`, then `claude`
 | `command not found: sandpit-claude` | Terminal can't find the commands | Open a new Terminal window. If it persists, repeat step 3 |
 | `image agent-sandpit not built yet` | The build hasn't been done | Run `sandpit build` |
 | `refusing to mount /Users/you` | You ran it from your home folder | `cd` into a project folder first |
+| A big build or test run stops with "Killed" | It hit the 6 GB memory limit | `SANDPIT_MEMORY=10g sandpit-claude` |
 | Your dev server doesn't load in the browser | It's listening on localhost, or on a different port | Start it with `--host 0.0.0.0 --port $PORT` and use the port the sandpit printed ([dev servers](#everyday-use)) |
 
 ## Everyday use
@@ -169,6 +170,7 @@ Codex is installed in the image too. Run `codex` inside a sandpit if you use it.
 - **Your agent settings are shared, not copied.** `~/.claude` is shared, so skills, settings, memory and history are the same inside and out.
 - **The agent can't rewrite its own global rules.** `~/.claude/CLAUDE.md` is shared read-only.
 - **No GitHub access inside.** Agents commit locally and you push from your Mac, after `checkgit`.
+- **Locked down inside, too.** Processes can't gain extra rights, the container has none of the admin abilities Docker normally hands out, and each session is capped at 6 GB of memory and 2,048 processes, so a runaway build can't take your Mac down with it.
 - **Agents can't leave code behind for your Mac to run.** In every repo it shares, the git hooks folder and git settings are locked read-only. Agents still edit and commit as normal. ([Why this matters](#why-git-hooks-are-locked).)
 
 ## What it doesn't protect against
@@ -269,6 +271,8 @@ sandpit build
 | `AGENT_WORKSPACE` | unset (current folder only) | Folder to share |
 | `SANDPIT_DOCKERFILE` | the repo's `Dockerfile` | Build from your own copy |
 | `SANDPIT_IMAGE` | `agent-sandpit` | Image name |
+| `SANDPIT_MEMORY` | `6g` | Memory limit per session. Raise it if big builds get killed |
+| `SANDPIT_PIDS` | `2048` | Process limit per session |
 | `OLLAMA_HOST` | unset | Passed in if set, e.g. `http://host.docker.internal:11434` |
 | `CHECKGIT_OWNER` | unset | GitHub account(s) `checkgit` expects remotes to point at |
 
